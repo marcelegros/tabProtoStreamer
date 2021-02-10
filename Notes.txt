@@ -1,0 +1,27 @@
+
+
+FREQUENCY BAND DETECTION
+
+DFT algorithms allow for the analysis of 
+
+    highestFreq < sampleFreq / 2
+
+    (where sampleFreq = sampleRate for all intents and purposes)
+
+
+
+FREQUENCY RESOLUTION
+
+(sampleRate / windowSizeSamps) gives us an interesting metric. Units of 1/s. 
+It's usually the equivalent of ( 1 / windowSizeSeconds)
+
+This provides us with the frequency resolution of the sample. 
+(...because 1 10 HZ period is capable of fitting in the window.)
+
+So, a window of 0.1s will have a frequency resolution of roughly 10 Hz. 
+
+
+A wiider window provides us with higher resolution!
+
+In our implementation, we'll likley have to cut the resolution when the next note plays, or do some subractive synthesis in analysis. 
+
