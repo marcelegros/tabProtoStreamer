@@ -56,6 +56,14 @@ def stringDataCallback(frequency, stringId, timeStamp):
     socket.emit('newTabData',
                       {'data': {'frequency': frequency, 'stringId': stringId, 'time': timeStamp}})
 
+    # Dummy A string for validation (b2)
+    # socket.emit('newTabData',
+    #                   {'data': {'frequency': 123.47, 'stringId': 1, 'time': timeStamp + 0.2}})
+
+    # # Dummy D string for validation 
+    # socket.emit('newTabData',
+    #                   {'data': {'frequency': 146.83, 'stringId': 2, 'time': timeStamp}})
+
 
 # Background thread for audio processing!
 def backgroundThread():

@@ -6,6 +6,7 @@ from scipy.fftpack import fft
 import os
 import copy
 import math
+import time
 
 # Local imports
 from constants import *
@@ -46,6 +47,7 @@ class StringStreamer:
         # Harmonic Product Spectrums
         self.harmonicProdSpectrums = 8
 
+        # TODO @Marcel: Make robust for other devices with more channels! (Attach each to a string, etc.)
         # Init stream
         self.stream = sd.InputStream(callback = self.audioBufferCallback,
                                     blocksize = self.blocksize,
@@ -55,9 +57,17 @@ class StringStreamer:
 
         self.stream.start()
 
-        # TODO: Init processing / any connections
+        self.currentTime = 0
+
+        # A flag used so we don't count impulses twice
+        self.impulseSeenLastWindow = False
 
         return
+
+
+    def tFromCurWindowIdx(self, windowIdx):
+
+        return (self.currentTime + windowIdx / self.streamSampleRate)
 
 
     # Audio Buffer Callback
@@ -65,22 +75,34 @@ class StringStreamer:
 
         # TODO @Marcel: Move constants over to members, as makes sense.
 
-        print(self.name + " :Buffer Hit...")
+        print("\n\n" , self.name + " :Buffer Hit...")
+        # print("CurTime: ", self.currentTime)
 
         # Progress window buffer
         self.updateWindowWithBuffer(indata, frame_count)
+
+        # Increment time 
+        self.currentTime += len(indata) / self.streamSampleRate
 
 
         # Detect any buffer impulses!
         bufferImpulses = self.detectImpulses()
 
-        # Discard any impulses
+        # Discard any redundant impulses
         newBufferImpulses = [ ]
         for impulseIdx in bufferImpulses:
             
-            if impulseIdx >= len(indata):
+            # Make sure the idx is in the range of what was taken in.
+            if not self.impulseSeenLastWindow or impulseIdx >= (len(self.windowBuffer) - len(indata)) :
                 newBufferImpulses.append(impulseIdx)
 
+        # TODO @Marcel: This is discarding good indices!!! Needs a better "lastDetected" check...
+        
+        # Update flag for impulse taken in
+        if len(newBufferImpulses) > 0:
+            self.impulseSeenLastWindow = True
+        else:
+            self.impulseSeenLastWindow = False
 
             # NOTE: We'll likely need to note these, then get the best reading on them as they go. 
 
@@ -138,10 +160,45 @@ class StringStreamer:
 
         '''
 
+        # TODO @Marcel: Kick out the low envegy frequencies, to provide better HPS 
+
+
+        # HPS
+        harmonicProdSpectrum = self.getHarmonicProdSpectrum(fftValues)
+        
+
+        # TODO @Marcel: Better methodology for scaling these intuitively using scipy? After stabalized...
+
+        # NOTE: Divisision by # HPS because 
+
+        # Divide by the number of harmonic product spectrums performed!
+        # ... due to the fact that by the end, we've shifted the pitches meaning by that much. 
+
+        highestFFT_idx = np.argmax( harmonicProdSpectrum )
+        highestFFT_freq = highestFFT_idx * (self.streamSampleRate / self.windowSizeSamps) / self.harmonicProdSpectrums       
+
+        print("Highest FFT Frequency: ", highestFFT_freq)
+
+        # TODO @Marcel: Do this more smartly!!! Temporary hack!
+            # We need to detect the frequency profiles on the separate impulses!
+
+        # TODO @Marcel: Time should be based on the curTime + timeOfImpulse!
+
+        if (len(newBufferImpulses) > 0):
+            self.valueCallback(highestFFT_freq, 0, self.currentTime)
+
+
+        return
+
+
+    def getHarmonicProdSpectrum(self, fftValues):
+
         # Upsample the data
         # Since HPS is going to use harmonics... 
         # Each time we make a jump in HPS we're effectively stretching the spectrum by the multiplier... 
-        # So to accieve the granularity we'd like at the final step of HPS... we'll upsample by 1 / # product runs.
+
+        # So to accieve the granularity we'd like at the final step of HPS... we'll upsample by # product runs.
+            # Meaning, we'll need to interpolate, stepping by (1 / # HPS Runs)
 
         upsampleInterpValues = np.arange(0, len(fftValues), 1 / self.harmonicProdSpectrums)
         interpIdxRange = np.arange(0, len(fftValues))
@@ -173,29 +230,10 @@ class StringStreamer:
 
             harmonicProdSpectrum = updatedSpec
 
-
         # TODO @Marcel: There's an off case if we break out of the above loop. The indexing thing below wont work!
 
 
-        # TODO @Marcel: Better methodology for scaling these intuitively using scipy? After stabalized...
-
-        # NOTE: Divisision by # HPS because 
-
-        # Divide by the number of harmonic product spectrums performed!
-        # ... due to the fact that by the end, we've shifted the pitches meaning by that much. 
-
-        highestFFT_idx = np.argmax( harmonicProdSpectrum )
-        highestFFT_freq = highestFFT_idx * (self.streamSampleRate / self.windowSizeSamps) / self.harmonicProdSpectrums       
-
-        print("Highest FFT Frequency: ", highestFFT_freq)
-
-        # TODO @Marcel: Do this more smartly!!! Temporary hack!
-            # We need to detect the frequency profiles on the separate nodes!
-        if (len(newBufferImpulses) > 0):
-            self.valueCallback(highestFFT_freq, 0, 0)
-
-
-        return
+        return harmonicProdSpectrum
 
 
 
@@ -235,11 +273,15 @@ class StringStreamer:
             # Get next kernel power
             kernel2Power = (np.linalg.norm(kernel2, ord=2)**2) / len(kernel2)
 
-            # print("\nPower: ", kernel1Power, " => ", kernel2Power, '\n')
+            print("\nPower: ", kernel1Power, " => ", kernel2Power, '\n')
 
             # Power Jump? 
             if ( (kernel2Power / kernel1Power) > IMPULSE_POWER_MULT_THRESHOLD ):
-                # print("IMPULSE!")
+                print("\n------ IMPULSE! ------\n: ", i+1, " / ", kernelsNeeded)
+                kernelImpulseIdxs.append(i+1)
+
+            elif ( (kernel2Power - kernel1Power) > IMPULSE_POWER_DELTA_THRESHOLD ): 
+                print('\n ------ STEP IMPULSE! ------ \n : ', i+1, " / ", kernelsNeeded)
                 kernelImpulseIdxs.append(i+1)
         
 
