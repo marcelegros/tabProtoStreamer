@@ -273,7 +273,7 @@ class StringStreamer:
             # Get next kernel power
             kernel2Power = (np.linalg.norm(kernel2, ord=2)**2) / len(kernel2)
 
-            print("\nPower: ", kernel1Power, " => ", kernel2Power, '\n')
+            # print("\nPower: ", kernel1Power, " => ", kernel2Power, '\n')
 
             # Power Jump? 
             if ( (kernel2Power / kernel1Power) > IMPULSE_POWER_MULT_THRESHOLD ):

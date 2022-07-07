@@ -1,5 +1,6 @@
 
 from threading import Lock
+from turtle import back
 
 from flask import Flask, render_template
 from flask_socketio import SocketIO
@@ -85,7 +86,10 @@ def backgroundThread():
 
 if __name__ == '__main__':
 
-    socket.run(server, port=PORT, debug= True)
+    # socket.run(server, port=PORT, debug= True)
+
+    # Just run the streaming thread
+    backgroundThread()
     
     
 
